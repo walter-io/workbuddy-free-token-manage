@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  @apply bg-zinc-100 text-zinc-800 antialiased;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  /* 数字等宽对齐：价格/次数/Token 等纵向排版更整齐 */
+  font-variant-numeric: tabular-nums;
+}
+
+::selection {
+  @apply bg-indigo-200/70;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-zinc-300 rounded-full;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-zinc-400;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+/* Firefox 细滚动条 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #d4d4d8 transparent;
+}
+
+/* 键盘可达性：Tab 聚焦时给清晰的可见焦点环 */
+:focus-visible {
+  outline: 2px solid #a5b4fc;
+  outline-offset: 1px;
+  border-radius: 4px;
+}

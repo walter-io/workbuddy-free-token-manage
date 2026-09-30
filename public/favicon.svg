@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="ft-body" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#818cf8"/>
+      <stop offset="1" stop-color="#6d28d9"/>
+    </linearGradient>
+    <linearGradient id="ft-ear" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6366f1"/>
+      <stop offset="1" stop-color="#5b21b6"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 地面投影 -->
+  <ellipse cx="256" cy="482" rx="118" ry="16" fill="#312e81" opacity="0.18"/>
+
+  <!-- 左耳 -->
+  <path d="M118 208 L146 72 L268 138 Z" fill="url(#ft-ear)" stroke="url(#ft-ear)" stroke-width="28" stroke-linejoin="round"/>
+  <path d="M162 178 L164 112 L228 148 Z" fill="#c7d2fe" stroke="#c7d2fe" stroke-width="14" stroke-linejoin="round"/>
+  <!-- 右耳 -->
+  <path d="M394 208 L366 72 L244 138 Z" fill="url(#ft-ear)" stroke="url(#ft-ear)" stroke-width="28" stroke-linejoin="round"/>
+  <path d="M350 178 L348 112 L284 148 Z" fill="#c7d2fe" stroke="#c7d2fe" stroke-width="14" stroke-linejoin="round"/>
+
+  <!-- 代币本体 -->
+  <circle cx="256" cy="296" r="166" fill="url(#ft-body)"/>
+  <circle cx="256" cy="296" r="132" fill="none" stroke="#ffffff" stroke-opacity="0.28" stroke-width="9"/>
+
+  <!-- 闪电徽记 -->
+  <path d="M272 178 L206 286 L248 286 L234 372 L306 250 L262 250 Z"
+        fill="#fde047" stroke="#fde047" stroke-width="10" stroke-linejoin="round"/>
+
+  <!-- 表情 -->
+  <circle cx="198" cy="342" r="11" fill="#1e1b4b"/>
+  <circle cx="314" cy="342" r="11" fill="#1e1b4b"/>
+  <circle cx="202" cy="338" r="4" fill="#ffffff" opacity="0.9"/>
+  <circle cx="318" cy="338" r="4" fill="#ffffff" opacity="0.9"/>
+  <path d="M232 368 Q256 386 280 368" fill="none" stroke="#1e1b4b" stroke-width="7" stroke-linecap="round"/>
+  <ellipse cx="162" cy="360" rx="17" ry="10" fill="#f9a8d4" opacity="0.75"/>
+  <ellipse cx="350" cy="360" rx="17" ry="10" fill="#f9a8d4" opacity="0.75"/>
+
+  <!-- 星光 -->
+  <path d="M0 -16 C2 -6 6 -2 16 0 C6 2 2 6 0 16 C-2 6 -6 2 -16 0 C-6 -2 -2 -6 0 -16 Z" transform="translate(78 120) scale(1.1)" fill="#fbbf24"/>
+  <path d="M0 -16 C2 -6 6 -2 16 0 C6 2 2 6 0 16 C-2 6 -6 2 -16 0 C-6 -2 -2 -6 0 -16 Z" transform="translate(446 92) scale(0.9)" fill="#6ee7b7"/>
+  <path d="M0 -16 C2 -6 6 -2 16 0 C6 2 2 6 0 16 C-2 6 -6 2 -16 0 C-6 -2 -2 -6 0 -16 Z" transform="translate(452 214) scale(0.65)" fill="#fbbf24"/>
+  <path d="M0 -16 C2 -6 6 -2 16 0 C6 2 2 6 0 16 C-2 6 -6 2 -16 0 C-6 -2 -2 -6 0 -16 Z" transform="translate(60 262) scale(0.55)" fill="#c7d2fe"/>
+</svg>
