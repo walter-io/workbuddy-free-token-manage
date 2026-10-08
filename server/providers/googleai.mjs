@@ -14,6 +14,8 @@ export const platform = defineOpenAIPlatform({
   modelsPublic: false,
   isFree: true,
   mapModelId: (id) => id.replace(/^models\//, ''),
-  keyFormat: /^AIza[A-Za-z0-9_-]+$/,
-  note: 'Gemini 系列免费档限速使用；国内网络需要代理',
+  keyPlaceholder: 'AIza… / AQ.…',
+  // 2025 年起 Google AI Studio 新发 v2 格式 Key（AQ. 开头，约 53 位），与旧版 AIza 格式并存
+  keyFormat: /^(AIza[A-Za-z0-9_-]+|AQ\.[A-Za-z0-9_-]+)$/,
+  note: 'Gemini 系列免费档限速使用；需要连 VPN（国内无法直连）',
 });

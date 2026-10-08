@@ -17,21 +17,31 @@ import * as googleai from './googleai.mjs';
 import * as nvidia from './nvidia.mjs';
 import * as github from './github.mjs';
 
-/** 平台在界面里的展示顺序（模型广场切换、额度分组、设置页 Key 分组共用） */
+/** 平台在界面里的展示顺序（模型广场切换、额度分组、设置页 Key 分组共用）。
+ * 后段为置灰展示的平台：不可浏览模型、不可添加 Key，点击时提示原因。
+ * 适配器均保留，URL 识别不中断——此前载入的条目仍可在「已载入面板」中移除。
+ * - region：地区封锁（对话请求由 WorkBuddy 直连发出，国内无 TUN 全局代理时必然 403）
+ * - platform：国内可连但平台限制外部客户端调用 */
 export const PLATFORM_ORDER = [
   'openrouter',
-  'zen',
   'agnes',
   'siliconflow',
   'modelscope',
-  'zhipu',
   'groq',
-  'cerebras',
-  'mistral',
   'googleai',
   'nvidia',
   'github',
+  'zen',
 ];
+
+/** 置灰展示的平台及原因（null/undefined = 正常可用） */
+export const UI_DISABLED_REASONS = {
+  groq: 'region',
+  googleai: 'region',
+  nvidia: 'region',
+  github: 'region',
+  zen: 'platform',
+};
 
 const openrouterProvider = {
   id: 'openrouter',
@@ -80,16 +90,16 @@ export function getProvider(id) {
 export function listPlatforms() {
   return PLATFORM_ORDER.filter((id) => providers[id]).map((id) => {
     const { id: pid, name, shortName, site, keyUrl, keyPlaceholder, modelsPublic, quotaKind, note, baseUrl } = providers[id];
-    return { id: pid, name, shortName, site, keyUrl, keyPlaceholder, modelsPublic, quotaKind, note, baseUrl };
+    return { id: pid, name, shortName, site, keyUrl, keyPlaceholder, modelsPublic, quotaKind, note, baseUrl, uiDisabled: UI_DISABLED_REASONS[pid] || null };
   });
 }
 
-/** 判断一个 WorkBuddy models.json 条目的 url 属于哪个受管平台（null = 与本工具无关） */
+/** 判断一个 WorkBuddy models.json 条目的 url 属于哪个受管平台（null = 与本工具无关）。
+ * 用全量适配器（而非 PLATFORM_ORDER）匹配，界面下线的平台此前载入的条目仍可被识别和移除。 */
 export function matchPlatformUrl(url) {
   if (typeof url !== 'string') return null;
-  for (const id of PLATFORM_ORDER) {
-    const p = providers[id];
-    if (url.startsWith(p.baseUrl)) return id;
+  for (const p of Object.values(providers)) {
+    if (url.startsWith(p.baseUrl)) return p.id;
   }
   return null;
 }

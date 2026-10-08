@@ -4,7 +4,7 @@
 
 # Free Token
 
-**给 WorkBuddy 免费接上 12 个 AI 平台的大牌模型**
+**给 WorkBuddy 免费接上 4 个 AI 平台的大牌模型**
 
 不用充值、不用读文档 —— 挑好模型，一键写进 WorkBuddy。
 
@@ -25,7 +25,7 @@ WorkBuddy 里想用 Claude、GPT、DeepSeek、Qwen……但一个个去官网注
 
 | 页面 | 一句话说明 |
 | --- | --- |
-| 🔍 **模型广场** | 12 个平台的模型摆在一起，按"免费"筛选，勾选后一键载入 |
+| 🔍 **模型广场** | 4 个平台的模型摆在一起，按"免费"筛选，勾选后一键载入 |
 | 🔑 **设置** | 各平台 API Key 集中管理，旁边就是"去申请"的直达链接 |
 | 📊 **额度与积分** | 今天还能免费调用多少次，一眼看清 |
 | 📈 **Token 统计** | 纯本机分析你的会话日志，看省了多少、用在哪 |
@@ -103,22 +103,16 @@ npm run dev          # 终端 2：Vite 开发服务器（http://localhost:5174�
 
 ---
 
-## 🆓 支持的免费平台（12 个）
+## 🆓 支持的免费平台（4 个）
+
+> 只收录**国内可直连或实测可用**的平台。Groq / Google AI Studio / NVIDIA NIM / GitHub Models 等因地区封锁已内置适配器但不在界面展示（对话请求由 WorkBuddy 直连发出，无全局代理时必然被拒 403）。
 
 | 平台 | 免费情况 | 需要 Key？ |
 | --- | --- | --- |
 | [OpenRouter](https://openrouter.ai) | 几十个 `:free` 模型，每天每账号 50 次 | ✅ |
-| [OpenCode Zen](https://opencode.ai/docs/zen) | 一批限时免费模型（部分会收集对话数据） | 载入时需要 |
 | [Agnes AI](https://agnes-ai.com) | 推广期文本/图像/视频全免费 | ✅ |
 | [硅基流动](https://siliconflow.cn) | 部分小模型永久免费，国内直连快 | ✅ |
-| [魔搭 ModelScope](https://modelscope.cn) | 每个模型每天 2000 次 | ✅（`ms-` 开头） |
-| [智谱 BigModel](https://open.bigmodel.cn) | GLM flash 系列免费，国内直连 | ✅ |
-| [Groq](https://groq.com) | 全部模型免费档限速，速度极快 | ✅ |
-| [Cerebras](https://cloud.cerebras.ai) | 全部模型免费档限速，速度极快 | ✅ |
-| [Mistral](https://console.mistral.ai) | Experiment 免费档限速 | ✅ |
-| [Google AI Studio](https://aistudio.google.com) | Gemini 免费档限速（国内需代理） | ✅ |
-| [NVIDIA NIM](https://build.nvidia.com) | 注册送开发积分 | 载入时需要 |
-| [GitHub Models](https://github.com/marketplace/models) | GitHub 账号就能用，按档位限速 | ✅（GitHub Token） |
+| [魔搭 ModelScope](https://modelscope.cn) | 每个模型每天 2000 次，需先绑定阿里云账号 | ✅（`ms-` 开头） |
 
 > 💡 **不用全注册**：先弄一个 OpenRouter 就够日常用了；想要更快速度或国产直连，再按需加。
 > ⚠️ 各平台免费政策随时会调整，以官网为准。

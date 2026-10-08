@@ -54,6 +54,13 @@ export function fmtRelative(ms: number | null | undefined): string {
   return Math.floor(diff / 86400_000) + ' 天前';
 }
 
+/** Key 标签已包含掩码尾巴时不再重复展示（默认标签形如「SiliconFlow ••••hecu」） */
+export function showsMask(label: string | null | undefined, masked: string | null | undefined): boolean {
+  if (!masked) return false;
+  if (!label) return true;
+  return !label.trim().endsWith(masked.trim());
+}
+
 /** 距离下一个 UTC 午夜（免费额度重置时间）的毫秒数 */
 export function msToUtcMidnight(now = Date.now()): number {
   const d = new Date(now);

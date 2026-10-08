@@ -43,6 +43,8 @@ export interface PlatformInfo {
   note: string | null;
   keyCount?: number;
   modelCount?: number | null;
+  /** 置灰原因：region = 地区受限；platform = 平台限制外部使用；null = 正常可用 */
+  uiDisabled?: 'region' | 'platform' | null;
 }
 
 export interface FreeDailyRequests {
@@ -123,6 +125,16 @@ export interface LoadedInfo {
   loaded: LoadedEntry[];
   running?: boolean;
   exePath?: string | null;
+  /** 进程探测本身失败时的原因（非空表示状态不可信，不能断定"未运行"） */
+  detectError?: string | null;
+  /** 探测方式：powershell / tasklist / pgrep */
+  detectMethod?: string | null;
+  /** 降级探测导致的能力缺失说明（例如拿不到启动时间） */
+  detectWarning?: string | null;
+  /** 检测到的同名进程数（Electron 应用会有多个） */
+  processCount?: number | null;
+  modelsJsonMtime?: number | null;
+  pendingRestart?: boolean;
 }
 
 export interface LoadResult {
@@ -192,6 +204,8 @@ export interface DetectResult {
   detected: WorkbuddyDetection;
   running: boolean;
   exePath: string | null;
+  detectError?: string | null;
+  detectMethod?: string | null;
 }
 
 export interface PlatformCacheInfo {
@@ -203,6 +217,8 @@ export interface PlatformCacheInfo {
 
 export interface SettingsInfo {
   workbuddyDir: string;
+  proxyUrl: string;
+  effectiveProxy: string | null;
   detected: WorkbuddyDetection;
   cacheDir: string;
   modelsCaches: PlatformCacheInfo[];

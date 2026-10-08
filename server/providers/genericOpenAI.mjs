@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import { atomicWriteJson, cachePath } from '../store/config.mjs';
+import { proxyFetch } from '../proxy.mjs';
 
 /**
  * 通用 OpenAI 兼容平台适配器：各平台只需声明 baseUrl、免费判定规则和模态推断规则。
@@ -37,9 +38,15 @@ const UPSTREAM_TIMEOUT_MS = 15_000;
 export async function fetchModelsOpenAI({ platform, baseUrl, apiKey, extraHeaders = {} }) {
   const headers = { Accept: 'application/json', ...extraHeaders };
   if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
-  const res = await fetch(`${baseUrl}/models`, { headers, signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS) });
+  const res = await proxyFetch(`${baseUrl}/models`, { headers, signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS) });
   if (!res.ok) throw new Error(`${platform} /models 返回 HTTP ${res.status}`);
-  const json = await res.json();
+  let json;
+  try {
+    json = await res.json();
+  } catch {
+    // 个别平台未鉴权时返回 200 + 纯文本（如 GitHub Models 返回 "OK"）
+    throw new Error(`${platform} /models 返回了非 JSON 内容（HTTP ${res.status}），通常意味着该接口需要配置 API Key`);
+  }
   const list = Array.isArray(json?.data) ? json.data : [];
   if (!list.length) throw new Error(`${platform} /models 返回为空`);
   return list;
@@ -117,15 +124,47 @@ export function clearModelsCache(platform) {
   }
 }
 
+/** 已知上游错误的可操作中文提示（匹配平台返回原文） */
+const KNOWN_HINTS = [
+  [
+    /bind your alibaba cloud/i,
+    '解决：打开 modelscope.cn → 右上角头像 → 账号设置 → 账号绑定 → 绑定阿里云账号（免费，绑定时会跳转阿里云授权），绑定后无需更换 Key，直接回来重试即可',
+  ],
+  [/quota|rate.?limit|throttl/i,
+    '该平台返回了限额类错误：Key 鉴权可能已通过，但当前处于限速状态，稍后重试'],
+];
+
+/** 读取上游错误正文摘录（401/403 时给用户看真实拒绝原因，如魔搭"未绑定阿里云账号"） */
+async function errBodySnippet(res) {
+  try {
+    const text = (await res.text()).trim();
+    if (!text) return '';
+    let msg = text;
+    try {
+      const j = JSON.parse(text);
+      msg = j?.error?.message || j?.message || j?.error || text;
+    } catch {
+      /* 非 JSON，直接用原文 */
+    }
+    msg = String(msg).replace(/\s+/g, ' ').slice(0, 160);
+    const hint = KNOWN_HINTS.find(([re]) => re.test(msg) || re.test(text))?.[1];
+    return msg ? `（平台返回：${msg}${hint ? `。${hint}` : ''}）` : '';
+  } catch {
+    return '';
+  }
+}
+
 /** 用 /models 可达性做 key 有效性校验（模型列表需要鉴权的平台用） */
 export async function testKeyOpenAI({ baseUrl, apiKey, extraHeaders = {} }) {
   try {
-    const res = await fetch(`${baseUrl}/models`, {
+    const res = await proxyFetch(`${baseUrl}/models`, {
       headers: { Accept: 'application/json', ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}), ...extraHeaders },
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     });
-    if (res.status === 401 || res.status === 403) return { ok: false, invalid: true };
-    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+    if (res.status === 401 || res.status === 403) {
+      return { ok: false, invalid: true, error: `平台拒绝访问（HTTP ${res.status}）${await errBodySnippet(res)}` };
+    }
+    if (!res.ok) return { ok: false, error: `HTTP ${res.status}${await errBodySnippet(res)}` };
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err?.message || '网络错误' };
@@ -139,18 +178,20 @@ export async function testKeyOpenAI({ baseUrl, apiKey, extraHeaders = {} }) {
  */
 export async function testKeyByChatProbe({ baseUrl, apiKey, probeModel, extraHeaders = {} }) {
   try {
-    const res = await fetch(`${baseUrl}/chat/completions`, {
+    const res = await proxyFetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}`, ...extraHeaders },
       body: JSON.stringify({ model: probeModel, messages: [{ role: 'user', content: 'ping' }], max_tokens: 1, stream: false }),
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     });
-    if (res.status === 401 || res.status === 403) return { ok: false, invalid: true };
+    if (res.status === 401 || res.status === 403) {
+      return { ok: false, invalid: true, error: `平台拒绝访问（HTTP ${res.status}）${await errBodySnippet(res)}` };
+    }
     if (res.status === 429) return { ok: true };
     if (!res.ok) {
       const text = await res.text().catch(() => '');
       if (/model/i.test(text) && res.status === 404) return { ok: true }; // 鉴权已过，仅探测模型不存在
-      return { ok: false, error: `HTTP ${res.status}` };
+      return { ok: false, error: `HTTP ${res.status}${await errBodySnippet(res)}` };
     }
     return { ok: true };
   } catch (err) {
@@ -171,6 +212,7 @@ export function defineOpenAIPlatform(cfg) {
     baseUrl,
     site,
     keyUrl,
+    keyPlaceholder,
     modelsPublic = false,
     isFree = true,
     loadable = true,
@@ -199,9 +241,13 @@ export function defineOpenAIPlatform(cfg) {
     keyUrl: keyUrl || null,
     modelsPublic,
     keyFormat: keyFormat || null,
+    keyPlaceholder: keyPlaceholder || null,
     note,
     getModels: async ({ refresh = false, apiKey } = {}) => {
       try {
+        if (!modelsPublic && !apiKey) {
+          throw new Error(`${name} 需要配置 API Key 才能获取模型列表，请先到「设置」添加并设为当前使用`);
+        }
         return await getModelsCached({
           platform: id,
           refresh,

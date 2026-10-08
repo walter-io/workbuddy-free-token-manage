@@ -6,3 +6,5 @@ out/
 *.log
 .DS_Store
 /.zcode
+/.workbuddy/memory
+/.workbuddy

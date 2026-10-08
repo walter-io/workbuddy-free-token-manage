@@ -12,6 +12,7 @@ export const platform = defineOpenAIPlatform({
   baseUrl: 'https://models.github.ai/openai',
   modelsPublic: false,
   isFree: true,
+  keyPlaceholder: 'github_pat_… / ghp_…',
   keyFormat: /^(github_pat_|gho_|ghp_)[A-Za-z0-9_]+$/,
-  note: '使用 GitHub Token（Fine-grained PAT 或 OAuth），按账号档位限速',
+  note: '目录内全部模型免费用（按账号档位限速，免费档较慢）。Key 用 GitHub Token：打开 github.com/settings/personal-access-tokens → Generate new token → 在权限里勾选 Models: Read',
 });

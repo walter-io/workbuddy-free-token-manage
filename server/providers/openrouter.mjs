@@ -1,4 +1,5 @@
 import { getModelsCached, peekModelsCacheFor } from './genericOpenAI.mjs';
+import { proxyFetch } from '../proxy.mjs';
 
 export const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
 const BASE = OPENROUTER_BASE_URL;
@@ -76,7 +77,7 @@ export function normalizeModel(m) {
 }
 
 export async function fetchModelsFromApi() {
-  const res = await fetch(`${BASE}/models`, {
+  const res = await proxyFetch(`${BASE}/models`, {
     headers: { Accept: 'application/json' },
     signal: AbortSignal.timeout(15_000),
   });
@@ -93,18 +94,18 @@ export async function getModels({ refresh = false } = {}) {
 }
 
 export async function fetchKeyInfo(apiKey) {
-  const res = await fetch(`${BASE}/key`, {
+  const res = await proxyFetch(`${BASE}/key`, {
     headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' },
     signal: AbortSignal.timeout(15_000),
   });
-  if (res.status === 401) return { ok: false, invalid: true };
+  if (res.status === 401 || res.status === 403) return { ok: false, invalid: true };
   if (!res.ok) throw new Error(`OpenRouter /key 返回 HTTP ${res.status}`);
   const json = await res.json();
   return { ok: true, data: json?.data || {} };
 }
 
 export async function fetchCredits(apiKey) {
-  const res = await fetch(`${BASE}/credits`, {
+  const res = await proxyFetch(`${BASE}/credits`, {
     headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' },
     signal: AbortSignal.timeout(15_000),
   });

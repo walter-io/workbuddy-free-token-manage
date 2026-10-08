@@ -17,12 +17,15 @@ import { clearModelsCache, modelsCacheFile } from './providers/genericOpenAI.mjs
 import {
   detectWorkbuddyDir,
   detectWorkbuddyProcess,
+  isPendingRestart,
+  modelsJsonMtime,
   listLoaded,
   loadModels,
   removeModels,
   restartWorkbuddy,
 } from './targets/workbuddy.mjs';
 import { getStats } from './stats/workbuddyStats.mjs';
+import { getProxyUrl } from './proxy.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -43,6 +46,12 @@ const platformFromReq = (req) => {
   const id = String(req.query.platform || req.body?.platform || 'openrouter');
   return getProvider(id);
 };
+
+/* ---------------- 健康检查（前端用于探测本地服务是否在线） ---------------- */
+
+app.get('/api/health', (req, res) => {
+  res.json({ ok: true, pid: process.pid, uptime: Math.round(process.uptime()), now: Date.now() });
+});
 
 /* ---------------- 平台与模型 ---------------- */
 
@@ -138,14 +147,28 @@ app.get('/api/keys', (req, res) => {
   });
 });
 
+/** 清洗用户粘贴的 Key：去零宽字符、所有空白字符、首尾包裹引号（网页复制的常见污染） */
+function cleanKey(raw) {
+  return String(raw || '')
+    .replace(/[\u200B-\u200F\u202A-\u202E\u2060\uFEFF]/g, '') // 零宽字符与方向控制符
+    .replace(/\s+/g, '') // 空格 / 换行 / 制表符等
+    .replace(/^["'`]+|["'`]+$/g, ''); // 首尾引号
+}
+
 app.post(
   '/api/keys',
   wrap(async (req, res) => {
-    const key = String(req.body?.key || '').trim();
+    const key = cleanKey(req.body?.key);
     const label = String(req.body?.label || '').trim();
     const provider = getProvider(String(req.body?.platform || 'openrouter'));
     if (provider.keyFormat && !provider.keyFormat.test(key)) {
-      return res.status(400).json({ error: `Key 格式不符合 ${provider.name} 的要求，请检查是否复制完整` });
+      const head = key.slice(0, 6);
+      return res.status(400).json({
+        error:
+          `Key 格式不符合 ${provider.name} 的要求（应以 ${provider.keyPlaceholder || '正确前缀'} 开头）。` +
+          `检测到粘贴内容以 "${head || '空'}" 开头、共 ${key.length} 个字符，` +
+          '请确认复制的是 API Key 本身（不是页面上的其他文本），重新复制后重试',
+      });
     }
     const cfg = loadConfig();
     if (cfg.keys.some((k) => k.platform === provider.id && k.key === key)) {
@@ -154,7 +177,7 @@ app.post(
     // 先验真伪再入库
     const t = await provider.testKey(key);
     if (!t.ok) {
-      const why = t.invalid ? '平台返回未授权（401），请检查是否复制完整' : t.error || '校验失败';
+      const why = t.invalid ? t.error || '平台返回未授权（401），Key 已失效或账户未开通该服务' : t.error || '校验失败';
       return res.status(400).json({ error: `Key 无效：${why}` });
     }
     const item = {
@@ -221,7 +244,19 @@ app.get(
   wrap(async (req, res) => {
     const loaded = listLoaded();
     const proc = await detectWorkbuddyProcess();
-    res.json({ ...loaded, running: proc.running, exePath: proc.exePath || null });
+    res.json({
+      ...loaded,
+      running: proc.running,
+      exePath: proc.exePath || null,
+      // 进程探测本身失败（而非"确实没运行"）时透出原因，避免界面给出错误结论
+      detectError: proc.error || null,
+      detectMethod: proc.method || null,
+      processCount: proc.processCount ?? null,
+      // 降级探测（tasklist）拿不到启动时间，无法自动判断"配置待重启"
+      detectWarning: proc.warning || (proc.startTimeUnknown ? '未能获取进程启动时间，无法自动判断模型配置是否需要重启' : null),
+      modelsJsonMtime: modelsJsonMtime(),
+      pendingRestart: isPendingRestart(proc), // 配置已变更但运行中的 WorkBuddy 尚未读取
+    });
   })
 );
 
@@ -291,17 +326,20 @@ app.post(
 
 /* ---------------- Token 统计 ---------------- */
 
-app.get('/api/stats', (req, res) => {
-  const range = ['today', '7d', '30d', 'all'].includes(req.query.range) ? req.query.range : '30d';
-  res.json(
-    getStats({
-      range,
-      model: String(req.query.model || ''),
-      freeOnly: req.query.freeOnly === '1',
-      force: req.query.force === '1', // 手动刷新时绕过结果缓存强制重扫
-    })
-  );
-});
+app.get(
+  '/api/stats',
+  wrap(async (req, res) => {
+    const range = ['today', '7d', '30d', 'all'].includes(req.query.range) ? req.query.range : '30d';
+    res.json(
+      await getStats({
+        range,
+        model: String(req.query.model || ''),
+        freeOnly: req.query.freeOnly === '1',
+        force: req.query.force === '1', // 手动刷新时绕过结果缓存强制重扫
+      })
+    );
+  })
+);
 
 /* ---------------- 设置 ---------------- */
 
@@ -321,24 +359,41 @@ function readCacheInfos() {
     .filter(Boolean);
 }
 
-app.get('/api/settings', (req, res) => {
-  const cfg = loadConfig();
-  res.json({
-    workbuddyDir: cfg.settings.workbuddyDir || '',
-    detected: detectWorkbuddyDir(),
-    cacheDir: cachePath(''),
-    modelsCaches: readCacheInfos(),
-  });
-});
+app.get(
+  '/api/settings',
+  wrap(async (req, res) => {
+    const cfg = loadConfig();
+    res.json({
+      workbuddyDir: cfg.settings.workbuddyDir || '',
+      proxyUrl: cfg.settings.proxyUrl || '',
+      effectiveProxy: await getProxyUrl(),
+      detected: detectWorkbuddyDir(),
+      cacheDir: cachePath(''),
+      modelsCaches: readCacheInfos(),
+    });
+  })
+);
 
-app.put('/api/settings', (req, res) => {
-  const cfg = loadConfig();
-  if (typeof req.body?.workbuddyDir === 'string') {
-    cfg.settings.workbuddyDir = req.body.workbuddyDir.trim();
-  }
-  saveConfig(cfg);
-  res.json({ ok: true, workbuddyDir: cfg.settings.workbuddyDir, detected: detectWorkbuddyDir() });
-});
+app.put(
+  '/api/settings',
+  wrap(async (req, res) => {
+    const cfg = loadConfig();
+    if (typeof req.body?.workbuddyDir === 'string') {
+      cfg.settings.workbuddyDir = req.body.workbuddyDir.trim();
+    }
+    if (typeof req.body?.proxyUrl === 'string') {
+      cfg.settings.proxyUrl = req.body.proxyUrl.trim();
+    }
+    saveConfig(cfg);
+    res.json({
+      ok: true,
+      workbuddyDir: cfg.settings.workbuddyDir,
+      proxyUrl: cfg.settings.proxyUrl,
+      effectiveProxy: await getProxyUrl(),
+      detected: detectWorkbuddyDir(),
+    });
+  })
+);
 
 // 重新自动检测 WorkBuddy 数据目录（并附带运行状态）
 app.get(
@@ -346,7 +401,13 @@ app.get(
   wrap(async (req, res) => {
     const detected = detectWorkbuddyDir();
     const proc = await detectWorkbuddyProcess();
-    res.json({ detected, running: proc.running, exePath: proc.exePath || null });
+    res.json({
+      detected,
+      running: proc.running,
+      exePath: proc.exePath || null,
+      detectError: proc.error || null,
+      detectMethod: proc.method || null,
+    });
   })
 );
 

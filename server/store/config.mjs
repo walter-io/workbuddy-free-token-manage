@@ -3,12 +3,16 @@ import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
 
-export const CONFIG_DIR = path.join(os.homedir(), '.free-token');
+/** 配置目录：默认 ~/.free-token，可用 FREE_TOKEN_CONFIG_DIR 重定向（隔离测试用） */
+export const CONFIG_DIR = process.env.FREE_TOKEN_CONFIG_DIR
+  ? path.resolve(process.env.FREE_TOKEN_CONFIG_DIR)
+  : path.join(os.homedir(), '.free-token');
 export const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 export const CACHE_DIR = path.join(CONFIG_DIR, 'cache');
 
 const DEFAULT_SETTINGS = {
   workbuddyDir: '', // 覆盖默认 ~/.workbuddy
+  proxyUrl: '', // 出站代理（如 http://127.0.0.1:7890）；留空自动探测环境变量 / Windows 系统代理
 };
 
 const DEFAULT_CONFIG = {

@@ -12,6 +12,7 @@ export const platform = defineOpenAIPlatform({
   baseUrl: 'https://integrate.api.nvidia.com/v1',
   modelsPublic: true,
   isFree: true,
+  keyPlaceholder: 'nvapi-…',
   keyFormat: /^nvapi-[A-Za-z0-9_-]+$/,
-  note: '注册送开发积分，按积分限速使用',
+  note: '需要连 VPN（国内无法直连）；注册送开发积分，按积分限速使用',
 });

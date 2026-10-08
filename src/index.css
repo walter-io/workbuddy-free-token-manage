@@ -6,10 +6,12 @@ html, body, #root {
 
 body {
   @apply bg-zinc-100 text-zinc-800 antialiased;
+  color-scheme: light;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
     "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   /* 数字等宽对齐：价格/次数/Token 等纵向排版更整齐 */
   font-variant-numeric: tabular-nums;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 ::selection {
@@ -17,16 +19,23 @@ body {
 }
 
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
 ::-webkit-scrollbar-thumb {
   @apply bg-zinc-300 rounded-full;
+  border: 3px solid transparent;
+  background-clip: content-box;
 }
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-zinc-400;
+  border: 3px solid transparent;
+  background-clip: content-box;
 }
 ::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-corner {
   background: transparent;
 }
 /* Firefox 细滚动条 */
@@ -40,4 +49,41 @@ body {
   outline: 2px solid #a5b4fc;
   outline-offset: 1px;
   border-radius: 4px;
+}
+
+/* 鼠标点击不显示焦点环（仅键盘导航可见），减少视觉噪声 */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ---------------- 动效 ---------------- */
+
+@keyframes ft-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes ft-pop-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes ft-slide-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+.animate-fade-in { animation: ft-fade-in 0.16s ease-out both; }
+.animate-pop-in { animation: ft-pop-in 0.18s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-slide-up { animation: ft-slide-up 0.22s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in,
+  .animate-pop-in,
+  .animate-slide-up {
+    animation: none;
+  }
+  * {
+    transition-duration: 0.01ms !important;
+  }
 }

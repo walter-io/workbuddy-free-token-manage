@@ -1,8 +1,23 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Badge, Button, Card, IconChevronDown, IconExternalLink, IconKey, IconRefresh, IconTrash, Spinner, useToast } from '../components/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  IconChevronDown,
+  IconExternalLink,
+  IconEye,
+  IconEyeOff,
+  IconKey,
+  IconRefresh,
+  IconShield,
+  IconTrash,
+  Spinner,
+  useConfirm,
+  useToast,
+} from '../components/ui';
 import { del, get, post, put } from '../lib/api';
 import type { DetectResult, KeyInfo, KeysResponse, PlatformInfo, SettingsInfo } from '../lib/types';
-import { fmtDate, fmtRelative } from '../lib/format';
+import { fmtDate, fmtRelative, showsMask } from '../lib/format';
 
 function MarkerBadge({ ok, label }: { ok: boolean; label: string }) {
   return (
@@ -14,6 +29,7 @@ function MarkerBadge({ ok, label }: { ok: boolean; label: string }) {
 
 export default function SettingsPage() {
   const toast = useToast();
+  const confirm = useConfirm();
   const [platforms, setPlatforms] = useState<PlatformInfo[]>([]);
   const [keys, setKeys] = useState<KeyInfo[]>([]);
   const [activeKeys, setActiveKeys] = useState<Record<string, string | null>>({});
@@ -28,8 +44,11 @@ export default function SettingsPage() {
   const [wbDir, setWbDir] = useState('');
   const [savingDir, setSavingDir] = useState(false);
   const [wbRunning, setWbRunning] = useState<boolean | null>(null);
+  const [wbDetectError, setWbDetectError] = useState<string | null>(null);
   const [detecting, setDetecting] = useState(false);
   const [showManual, setShowManual] = useState(false);
+  const [proxyInput, setProxyInput] = useState('');
+  const [savingProxy, setSavingProxy] = useState(false);
 
   const platformMeta = platforms.find((p) => p.id === newPlatform);
 
@@ -47,6 +66,7 @@ export default function SettingsPage() {
       .then((r) => {
         setSettings(r);
         setWbDir(r.workbuddyDir || '');
+        setProxyInput(r.proxyUrl || '');
       })
       .catch((e) => toast('err', e.message));
   }, [toast]);
@@ -58,12 +78,14 @@ export default function SettingsPage() {
         const r = await get<DetectResult>('/api/workbuddy/detect');
         setSettings((prev) => (prev ? { ...prev, detected: r.detected } : prev));
         setWbRunning(r.running);
+        setWbDetectError(r.detectError || null);
         if (!silent) {
           if (r.detected.valid) {
             toast('ok', `已检测到 WorkBuddy 数据目录：${r.detected.dir}`);
           } else {
             toast('err', '未检测到 WorkBuddy 数据目录，请确认已安装并运行过 WorkBuddy，或手动指定');
           }
+          if (!r.running && r.detectError) toast('err', `无法确认 WorkBuddy 运行状态：${r.detectError}`);
         }
       } catch (e: any) {
         if (!silent) toast('err', e?.message || '检测失败');
@@ -103,6 +125,21 @@ export default function SettingsPage() {
     }
   };
 
+  /** 保存出站代理地址（留空恢复自动探测） */
+  const saveProxy = async (url: string) => {
+    setSavingProxy(true);
+    try {
+      const r = await put<{ ok: boolean; proxyUrl: string; effectiveProxy: string | null }>('/api/settings', { proxyUrl: url });
+      setSettings((prev) => (prev ? { ...prev, proxyUrl: r.proxyUrl, effectiveProxy: r.effectiveProxy } : prev));
+      setProxyInput(r.proxyUrl);
+      toast('ok', r.proxyUrl ? `代理已保存，出站请求将走 ${r.effectiveProxy || r.proxyUrl}` : '代理已清空，恢复自动探测（环境变量 / 系统代理）');
+    } catch (e: any) {
+      toast('err', e?.message || '保存失败');
+    } finally {
+      setSavingProxy(false);
+    }
+  };
+
   const addKey = async () => {
     const key = newKey.trim();
     if (!key) return;
@@ -126,7 +163,19 @@ export default function SettingsPage() {
 
   const removeKey = async (k: KeyInfo) => {
     const pname = platforms.find((p) => p.id === k.platform)?.name || k.platform;
-    if (!confirm(`确定删除 ${pname} 的 Key「${k.label}」吗？（仅从本工具移除，不影响平台账号）`)) return;
+    const ok = await confirm({
+      title: '删除平台 Key',
+      message: (
+        <>
+          确定删除 <b className="text-zinc-800">{pname}</b> 的 Key「{k.label}」吗？
+          <br />
+          仅从本工具移除（<span className="font-mono text-xs">~/.free-token/config.json</span>），不影响平台账号，也不会改动已载入 WorkBuddy 的模型。
+        </>
+      ),
+      confirmText: '删除',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await del(`/api/keys/${k.id}`);
       toast('ok', '已删除');
@@ -179,17 +228,29 @@ export default function SettingsPage() {
     <div className="space-y-4 max-w-3xl">
       {/* Key 管理（按平台） */}
       <Card className="p-5">
-        <div className="flex items-center gap-2 mb-1">
+        <div className="flex flex-wrap items-center gap-2 mb-1">
           <IconKey className="w-4 h-4 text-indigo-500" />
           <div className="font-medium text-zinc-900">平台 API Keys</div>
+          {keys.length > 0 && (
+            <>
+              <Badge color="blue">{keys.length} 个 Key</Badge>
+              <Badge color="gray">{groupedKeys.length} 个平台</Badge>
+            </>
+          )}
+          <span className="ml-auto inline-flex items-center gap-1 text-[11px] text-zinc-400">
+            <IconShield className="w-3.5 h-3.5" />
+            仅存本机，不上传
+          </span>
         </div>
-        <div className="text-xs text-zinc-400 mb-4">
-          每个平台的 Key 分开管理、可配多个轮换。Key 只保存在本机 ~/.free-token/config.json，仅用于调用对应平台的官方接口，不会发送到其他任何地方。
+        <div className="text-xs text-zinc-400 mb-4 leading-relaxed">
+          每个平台的 Key 分开管理、可配多个轮换。Key 只保存在本机 <span className="font-mono">~/.free-token/config.json</span>
+          ，仅用于调用对应平台的官方接口，不会发送到其他任何地方。
         </div>
 
         {keys.length === 0 ? (
-          <div className="text-sm text-zinc-400 bg-zinc-50 rounded-lg px-3 py-4 text-center mb-4">
-            还没有添加任何 Key。选择平台并粘贴对应的 API Key 即可。
+          <div className="text-sm text-zinc-500 bg-zinc-50 border border-dashed border-zinc-200 rounded-lg px-4 py-6 text-center mb-4">
+            <div className="font-medium text-zinc-700">还没有添加任何 Key</div>
+            <div className="text-xs text-zinc-400 mt-1">在下方选择平台，粘贴该平台的 API Key 后会自动校验并保存。</div>
           </div>
         ) : (
           <div className="mb-4">
@@ -202,6 +263,7 @@ export default function SettingsPage() {
                       <IconExternalLink className="w-3 h-3" />
                     </a>
                   )}
+                  {p.uiDisabled && <Badge color="gray">{p.uiDisabled === 'region' ? '地区受限' : '平台限制'}</Badge>}
                 </div>
                 <div className="divide-y divide-zinc-100 rounded-lg border border-zinc-100">
                   {ks.map((k) => (
@@ -212,7 +274,8 @@ export default function SettingsPage() {
                           {k.id === activeKeys[k.platform] ? <Badge color="green">活跃</Badge> : k.lastStatus === 'invalid' ? <Badge color="red">无效</Badge> : null}
                         </div>
                         <div className="text-xs text-zinc-400 font-mono">
-                          {k.masked} · 添加于 {fmtDate(k.addedAt)}
+                          {showsMask(k.label, k.masked) && <span className="mr-1">{k.masked} ·</span>}
+                          添加于 {fmtDate(k.addedAt)}
                         </div>
                       </div>
                       <div className="ml-auto flex items-center gap-1.5">
@@ -247,8 +310,9 @@ export default function SettingsPage() {
               className="h-9 px-2.5 rounded-lg border border-zinc-200 text-sm bg-white outline-none focus:border-indigo-400"
             >
               {platforms.map((p) => (
-                <option key={p.id} value={p.id}>
+                <option key={p.id} value={p.id} disabled={!!p.uiDisabled}>
                   {p.name}
+                  {p.uiDisabled ? (p.uiDisabled === 'region' ? '（地区受限）' : '（平台限制）') : ''}
                 </option>
               ))}
             </select>
@@ -285,10 +349,15 @@ export default function SettingsPage() {
                 onChange={(e) => setNewKey(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && addKey()}
                 placeholder={platformMeta?.keyPlaceholder || '粘贴 API Key'}
-                className="w-full h-9 px-3 pr-14 rounded-lg border border-zinc-200 text-sm font-mono outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                className="w-full h-9 px-3 pr-10 rounded-lg border border-zinc-200 text-sm font-mono outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
               />
-              <button className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-zinc-400 hover:text-zinc-600" onClick={() => setShowKey((v) => !v)}>
-                {showKey ? '隐藏' : '显示'}
+              <button
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 transition-colors"
+                onClick={() => setShowKey((v) => !v)}
+                title={showKey ? '隐藏 Key' : '显示 Key'}
+                aria-label={showKey ? '隐藏 Key' : '显示 Key'}
+              >
+                {showKey ? <IconEyeOff className="w-4 h-4" /> : <IconEye className="w-4 h-4" />}
               </button>
             </div>
             <input
@@ -351,7 +420,11 @@ export default function SettingsPage() {
                 <MarkerBadge ok={settings.detected.markers.sessions} label="sessions" />
                 <MarkerBadge ok={settings.detected.markers.db} label="workbuddy.db" />
                 {wbRunning != null && (
-                  <Badge color={wbRunning ? 'green' : 'gray'}>WorkBuddy {wbRunning ? '运行中' : '未运行'}</Badge>
+                  <span title={wbDetectError ? `无法确认运行状态：${wbDetectError}` : undefined}>
+                    <Badge color={wbRunning ? 'green' : wbDetectError ? 'amber' : 'gray'} dot>
+                      WorkBuddy {wbRunning ? '运行中' : wbDetectError ? '状态未知' : '未运行'}
+                    </Badge>
+                  </span>
                 )}
               </div>
               {!settings.detected.valid && (
@@ -380,6 +453,39 @@ export default function SettingsPage() {
             )}
           </>
         )}
+      </Card>
+
+      {/* 网络代理 */}
+      <Card className="p-5">
+        <div className="font-medium text-zinc-900 mb-1">网络代理</div>
+        <div className="text-xs text-zinc-400 mb-3 leading-relaxed">
+          OpenRouter 等海外平台在国内网络下可能无法直连。工具的出站请求默认不走系统代理，此处的代理地址用于访问这些平台；留空时自动探测环境变量（
+          <span className="font-mono">HTTPS_PROXY</span>）与 Windows 系统代理，均未命中则直连。
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            value={proxyInput}
+            onChange={(e) => setProxyInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && saveProxy(proxyInput)}
+            placeholder="例如 http://127.0.0.1:7890"
+            className="flex-1 min-w-56 h-9 px-3 rounded-lg border border-zinc-200 text-sm font-mono outline-none focus:border-indigo-400"
+          />
+          <Button variant="primary" loading={savingProxy} onClick={() => saveProxy(proxyInput)}>
+            保存
+          </Button>
+        </div>
+        <div className="text-xs text-zinc-400 mt-2">
+          当前出站状态：
+          {settings ? (
+            settings.effectiveProxy ? (
+              <span className="text-emerald-600 font-mono">走代理 {settings.effectiveProxy}</span>
+            ) : (
+              <span className="text-amber-600">直连（未配置代理，需 VPN 的平台将无法访问）</span>
+            )
+          ) : (
+            '…'
+          )}
+        </div>
       </Card>
 
       {/* 缓存 */}
@@ -411,11 +517,21 @@ export default function SettingsPage() {
       </Card>
 
       {/* 关于 */}
-      <Card className="p-5 text-xs text-zinc-400 leading-relaxed">
-        <div className="font-medium text-zinc-600 text-sm mb-2">关于 Free Token</div>
-        多平台免费模型管理（OpenRouter、OpenCode Zen、Agnes AI、硅基流动、魔搭、智谱、Groq 等）· 目标应用：WorkBuddy
-        <br />
-        隐私：API Key 与统计数据均只保存在本机，不经过任何第三方服务器；界面访问仅限 127.0.0.1。
+      <Card className="p-5 text-xs text-zinc-400 leading-relaxed space-y-1.5">
+        <div className="flex items-center gap-2">
+          <div className="font-medium text-zinc-600 text-sm">关于 Free Token</div>
+          <Badge color="gray">v0.1.0</Badge>
+        </div>
+        <div>
+          多平台免费模型管理工具 · 目标应用：<span className="text-zinc-500">WorkBuddy</span>
+        </div>
+        <div>
+          当前可用平台：OpenRouter、Agnes AI、硅基流动、魔搭；地区受限平台（Groq、Google AI Studio、NVIDIA、GitHub Models、OpenCode Zen）仅在模型广场展示，不可浏览与载入。
+        </div>
+        <div className="flex items-start gap-1.5">
+          <IconShield className="w-3.5 h-3.5 mt-px shrink-0 text-emerald-500" />
+          <span>隐私：API Key 与统计数据均只保存在本机，不经过任何第三方服务器；界面访问仅限 127.0.0.1。</span>
+        </div>
       </Card>
     </div>
   );
