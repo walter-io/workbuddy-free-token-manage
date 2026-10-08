@@ -1,8 +1,14 @@
 {
   "name": "free-token",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "多平台免费模型管理工具（OpenRouter / OpenCode Zen / Agnes AI / 硅基流动 / 魔搭等）：模型检索、免费额度、一键载入 WorkBuddy、Token 用量统计",
+  "author": "walter-io",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/walter-io/workbuddy-free-token-manage.git"
+  },
   "main": "electron/main.mjs",
   "type": "module",
   "scripts": {
@@ -11,9 +17,9 @@
     "build": "vite build",
     "start": "node server/index.mjs",
     "app": "electron .",
-    "app:dir": "npm run build && electron-builder --dir",
-    "app:win": "npm run build && electron-builder --win",
-    "app:mac": "npm run build && electron-builder --mac"
+    "app:dir": "npm run build && electron-builder --dir --publish never",
+    "app:win": "npm run build && electron-builder --win --publish never",
+    "app:mac": "npm run build && electron-builder --mac --publish never"
   },
   "dependencies": {
     "express": "^4.21.0",
