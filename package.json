@@ -1,7 +1,7 @@
 {
   "name": "free-token",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "多平台免费模型管理工具（OpenRouter / OpenCode Zen / Agnes AI / 硅基流动 / 魔搭等）：模型检索、免费额度、一键载入 WorkBuddy、Token 用量统计",
   "author": "walter-io",
   "license": "MIT",
